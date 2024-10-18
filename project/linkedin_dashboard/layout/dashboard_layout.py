@@ -6,7 +6,6 @@ skill_dict = get_skill_dict()
 skill_names = get_skill_names()
 
 layout = html.Div([
-    dcc.Interval(id='interval-component', interval=60 * 5000, n_intervals=0),
     html.H1("Análise de Vagas no Linkedin por Habilidades",
             style={
                 'position': 'absolute',
@@ -38,15 +37,6 @@ layout = html.Div([
     ],
              style={'paddingTop': '60px'}),
     html.Div([
-        html.P("Selecione o cargo:"),
-        dcc.Dropdown(
-            id="dropdown",
-            options=["Leader", "Assistant", "Producer", "Developer"],
-            value='Leader',
-            clearable=False,
-        ),
-    ]),
-    html.Div([
         html.Div(
             [
                 dcc.Graph(id='job-postings-2025-map',
@@ -60,7 +50,18 @@ layout = html.Div([
                 'display': 'inline-block'
             },
         ),
-        html.Div([dcc.Graph(id='graph')],
+        html.Div([
+            html.Div([
+                html.P("Selecione o cargo:"),
+                dcc.Dropdown(
+                    id="dropdown",
+                    options=["Leader", "Assistant", "Producer", "Developer"],
+                    value='Leader',
+                    clearable=False,
+                ),
+            ]),
+            dcc.Graph(id='graph')
+        ],
                  style={
                      'width': '45%',
                      'display': 'inline-block'

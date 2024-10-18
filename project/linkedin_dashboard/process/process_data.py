@@ -1,18 +1,18 @@
 from functools import lru_cache
+from typing import Optional
 
+# from geopy.geocoders import Nominatim
+# from geopy.exc import GeocoderTimedOut
 import geopandas as gpd
 import pandas as pd
 from linkedin_dashboard.settings.settings import get_settings
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error
-from sklearn.model_selection import train_test_split
+from prophet import Prophet
 
 from project.linkedin_dashboard.Enums.dataset_enum import DatasetName
 
 global_datasets = {}
 
 
-@lru_cache(maxsize=128)
 def get_global_dataset(dataset_name: str) -> pd.DataFrame:
     """
     Atualiza a variável global com um dataset tratado.
@@ -24,7 +24,7 @@ def get_global_dataset(dataset_name: str) -> pd.DataFrame:
     return global_datasets.get(dataset_name, None)
 
 
-def add_global_dataset(dataset_name: str, df: pd.DataFrame):
+def add_global_dataset(dataset_name: str, df: pd.DataFrame) -> None:
     """
     Atualiza a variável global com um dataset tratado.
 
@@ -35,7 +35,7 @@ def add_global_dataset(dataset_name: str, df: pd.DataFrame):
     global_datasets[dataset_name] = df
 
 
-def get_dataset(csv_path: str) -> pd.DataFrame:
+def get_dataset(csv_path: str, nrows: Optional[int] = None) -> pd.DataFrame:
     """
     Loads a dataset from a provided CSV file.
 
@@ -43,7 +43,9 @@ def get_dataset(csv_path: str) -> pd.DataFrame:
     :return: DataFrame with the content of the CSV file.
     """
     try:
-        return pd.read_csv(csv_path, nrows=3000)
+        if nrows:
+            return pd.read_csv(csv_path, nrows=nrows)
+        return pd.read_csv(csv_path)
     except FileNotFoundError:
         print(f"Error: File not found at the path: {csv_path}")
         raise
@@ -55,7 +57,7 @@ def get_dataset(csv_path: str) -> pd.DataFrame:
         raise
 
 
-def process_job_postings():
+def process_job_postings() -> pd.DataFrame:
     """
     Loads and processes job postings data, merging it with job skills.
 
@@ -63,14 +65,15 @@ def process_job_postings():
     """
     settings = get_settings()
 
-    job_postings_df = get_dataset(settings.dataset_settings.job_postings_path)
+    job_postings_df = get_dataset(settings.dataset_settings.job_postings_path,
+                                  nrows=8000)
     job_skills_df = get_dataset(settings.dataset_settings.job_skills_path)
-    company_specialities_df = get_dataset(
-        settings.dataset_settings.company_specialities_path)
+    # company_specialities_df = get_dataset(
+    #     settings.dataset_settings.company_specialities_path)
 
-    job_postings_df = job_postings_df.merge(company_specialities_df,
-                                            on="company_id",
-                                            how="left")
+    # job_postings_df = job_postings_df.merge(company_specialities_df,
+    #                                         on="company_id",
+    #                                         how="left")
 
     job_postings_df = merge_skills_with_jobs(job_postings_df, job_skills_df)
 
@@ -96,12 +99,16 @@ def process_job_postings():
 def merge_skills_with_jobs(job_postings_df: pd.DataFrame,
                            job_skills_df: pd.DataFrame) -> pd.DataFrame:
     """Merges job skills with job postings."""
+
     job_skills_df = job_skills_df.groupby('job_id')['skill_abr'].agg(
         lambda x: ', '.join(x)).reset_index()
+
     job_postings_df = job_postings_df.merge(job_skills_df,
                                             on="job_id",
                                             how="left")
+
     job_postings_df['skill_abr'] = job_postings_df['skill_abr'].fillna('')
+
     return job_postings_df
 
 
@@ -109,7 +116,7 @@ def process_postings_data(job_postings_df: pd.DataFrame) -> pd.DataFrame:
     """Processes job postings data: handling missing values, salary, and adding year."""
     job_postings_df = process_salary(job_postings_df)
     job_postings_df = handle_missing_values(job_postings_df)
-    # job_postings_df = process_salary2(job_postings_df)
+
     job_postings_df['remote_allowed'] = job_postings_df[
         'remote_allowed'].fillna(0)
     job_postings_df['is_remote'] = job_postings_df['remote_allowed'].apply(
@@ -172,7 +179,7 @@ def get_skill_names() -> list:
     return skill_names
 
 
-def handle_missing_values(df: pd.DataFrame) -> None:
+def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
     """
     Fills missing values in the job postings DataFrame for specified columns.
 
@@ -187,9 +194,6 @@ def handle_missing_values(df: pd.DataFrame) -> None:
         "Not Specified")
     df[cols_fill_zero] = df[cols_fill_zero].fillna(0)
 
-    df['max_salary'] = df['max_salary'].fillna(df['max_salary'].mean())
-    df['med_salary'] = df['med_salary'].fillna(df['med_salary'].median())
-    df['min_salary'] = df['min_salary'].fillna(df['min_salary'].min())
     if not df['company_name'].isnull().all():
         df['company_name'] = df['company_name'].fillna(
             df['company_name'].mode()[0])
@@ -207,7 +211,13 @@ def split_location(location: str):
     return city, state
 
 
-def process_salary(df: pd.DataFrame):
+def process_salary(df: pd.DataFrame) -> pd.DataFrame:
+    df['max_salary'] = pd.to_numeric(df['max_salary'], errors='coerce')
+    df['min_salary'] = pd.to_numeric(df['min_salary'], errors='coerce')
+
+    #df['max_salary'] = df['max_salary'].fillna(df['max_salary'].median())
+    #df['min_salary'] = df['min_salary'].fillna(df['min_salary'].median())
+
     df[['max_salary', 'min_salary', 'pay_period']] = df.apply(
         lambda row: (
             # Caso o pay_period seja 'HOURLY'
@@ -224,44 +234,42 @@ def process_salary(df: pd.DataFrame):
                     row['pay_period']),
         axis=1,
         result_type='expand')
-    df['calculated_med_salary'] = (df['max_salary'] + df['min_salary']) / 2
-    df['med_salary'] = df.apply(lambda row:
-                                (row['max_salary'] + row['min_salary']) / 2
-                                if row['med_salary'] <= 0 or row['med_salary']
-                                is None else row['med_salary'],
-                                axis=1)
+
+    df['med_salary'] = df['med_salary'].fillna(
+        (df['max_salary'] + df['min_salary']) / 2)
+
     df['med_salary'] = df['med_salary'].round(-3)
     return df
 
 
-def process_salary2(df: pd.DataFrame):
-    # Condições para transformar os valores com base no pay_period
-    is_hourly = df['pay_period'] == 'HOURLY'
-    is_monthly = df['pay_period'] == 'MONTHLY'
+# def process_salary2(df: pd.DataFrame):
+#     # Condições para transformar os valores com base no pay_period
+#     is_hourly = df['pay_period'] == 'HOURLY'
+#     is_monthly = df['pay_period'] == 'MONTHLY'
 
-    # Cálculos para 'HOURLY' e 'MONTHLY'
-    df.loc[is_hourly, ['max_salary', 'min_salary']] = df.loc[
-        is_hourly, ['max_salary', 'min_salary']] * 44 * 4 * 12
-    df.loc[is_monthly, ['max_salary', 'min_salary']] = df.loc[
-        is_monthly, ['max_salary', 'min_salary']] * 12
+#     # Cálculos para 'HOURLY' e 'MONTHLY'
+#     df.loc[is_hourly, ['max_salary', 'min_salary']] = df.loc[
+#         is_hourly, ['max_salary', 'min_salary']] * 44 * 4 * 12
+#     df.loc[is_monthly, ['max_salary', 'min_salary']] = df.loc[
+#         is_monthly, ['max_salary', 'min_salary']] * 12
 
-    # Atualizar 'pay_period' para 'YEARLY' onde for 'HOURLY' ou 'MONTHLY'
-    df.loc[is_hourly | is_monthly, 'pay_period'] = 'YEARLY'
+#     # Atualizar 'pay_period' para 'YEARLY' onde for 'HOURLY' ou 'MONTHLY'
+#     df.loc[is_hourly | is_monthly, 'pay_period'] = 'YEARLY'
 
-    # Calcular média salarial
-    df['calculated_med_salary'] = (df['max_salary'] + df['min_salary']) / 2
+#     # Calcular média salarial
+#     df['calculated_med_salary'] = (df['max_salary'] + df['min_salary']) / 2
 
-    # Substituir valores de 'med_salary' se nulo ou menor ou igual a zero
-    df['med_salary'] = df['med_salary'].where(df['med_salary'] > 0,
-                                              df['calculated_med_salary'])
+#     # Substituir valores de 'med_salary' se nulo ou menor ou igual a zero
+#     df['med_salary'] = df['med_salary'].where(df['med_salary'] > 0,
+#                                               df['calculated_med_salary'])
 
-    # Arredondar 'med_salary' para o milhar mais próximo
-    df['med_salary'] = df['med_salary'].round(-3)
+#     # Arredondar 'med_salary' para o milhar mais próximo
+#     df['med_salary'] = df['med_salary'].round(-3)
 
-    return df
+#     return df
 
 
-def filter_by_skills(df, selected_skills):
+def filter_by_skills(df: pd.DataFrame, selected_skills) -> pd.DataFrame:
     """
     Filters job postings by selected skills.
 
@@ -289,16 +297,19 @@ def get_remote_distribution(df: pd.DataFrame) -> list:
     return remote_counts
 
 
-def get_salary_means(df: pd.DataFrame) -> list:
+def get_salary_means(df: pd.DataFrame) -> pd.DataFrame:
     """
     Calculates the average salary for remote and non-remote job postings.
 
     :param df: DataFrame containing job postings data.
     :return: DataFrame with the average salary for remote and non-remote jobs.
     """
-    salary_means = df.groupby('is_remote')['med_salary'].mean().reset_index()
-    salary_means.columns = ['Tipo', 'Média Salarial']
-    return salary_means
+    salary_means_df = df.groupby(
+        'is_remote')['med_salary'].mean().reset_index()
+    salary_means_df.columns = ['Tipo', 'Média Salarial']
+    salary_means_df['Média Salarial'] = salary_means_df[
+        'Média Salarial'].apply(lambda x: int(x) if pd.notna(x) else x)
+    return salary_means_df
 
 
 def load_geolocation_data(json_path: str) -> pd.DataFrame:
@@ -327,33 +338,108 @@ def merge_geolocation_with_jobs(
                                  how='left')
 
 
-def train_job_posting_model(df: pd.DataFrame):
-    print(df.isnull().sum())
-    X = df[['med_salary', 'views', 'listed_time']]
-    y = df['views'] * 0.8
+def predict_job_postings_2025(predict_job_df: pd.DataFrame) -> pd.DataFrame:
+    all_states = [
+        "AL",  # Alabama
+        "AK",  # Alaska
+        "AZ",  # Arizona
+        "AR",  # Arkansas
+        "CA",  # California
+        "CO",  # Colorado
+        "CT",  # Connecticut
+        "DE",  # Delaware
+        "DC",  # District of Columbia
+        "FL",  # Florida
+        "GA",  # Georgia
+        "HI",  # Hawaii
+        "ID",  # Idaho
+        "IL",  # Illinois
+        "IN",  # Indiana
+        "IA",  # Iowa
+        "KS",  # Kansas
+        "KY",  # Kentucky
+        "LA",  # Louisiana
+        "ME",  # Maine
+        "MD",  # Maryland
+        "MA",  # Massachusetts
+        "MI",  # Michigan
+        "MN",  # Minnesota
+        "MS",  # Mississippi
+        "MO",  # Missouri
+        "MT",  # Montana
+        "NE",  # Nebraska
+        "NV",  # Nevada
+        "NH",  # New Hampshire
+        "NJ",  # New Jersey
+        "NM",  # New Mexico
+        "NY",  # New York
+        "NC",  # North Carolina
+        "ND",  # North Dakota
+        "OH",  # Ohio
+        "OK",  # Oklahoma
+        "OR",  # Oregon
+        "PA",  # Pennsylvania
+        "RI",  # Rhode Island
+        "SC",  # South Carolina
+        "SD",  # South Dakota
+        "TN",  # Tennessee
+        "TX",  # Texas
+        "UT",  # Utah
+        "VT",  # Vermont
+        "VA",  # Virginia
+        "WA",  # Washington
+        "WV",  # West Virginia
+        "WI",  # Wisconsin
+        "WY",  # Wyoming
+        "PR"  # Puerto Rico
+    ]
+    states = predict_job_df['state'].unique()
+    predict_job_df['ds'] = predict_job_df['listed_time_y_m_d']
 
-    X_train, X_test, y_train, y_test = train_test_split(X,
-                                                        y,
-                                                        test_size=0.2,
-                                                        random_state=42)
+    results = []
 
-    model = LinearRegression()
-    model.fit(X_train, y_train)
+    for state in states:
+        df_state: pd.DataFrame = predict_job_df[predict_job_df['state'] ==
+                                                state]
 
-    y_pred = model.predict(X_test)
-    mse = mean_squared_error(y_test, y_pred)
-    print(f"Mean Squared Error: {mse}")
+        df_weekly = df_state.set_index('ds').resample('D').size().reset_index(
+            name='y')
 
-    return model
+        if df_weekly.empty or df_weekly.shape[0] < 2:
+            skills_list = ', '.join(df_state['skill_abr'].dropna().unique())
+            results.append({
+                'state': state,
+                'predicted_postings': 1,
+                'skill_abr': skills_list
+            })
+            continue
 
+        model = Prophet()
+        model.fit(df_weekly)
 
-def predict_job_postings_2025(model, df: pd.DataFrame):
-    df_2025 = df.copy(deep=True)
-    df_2025['year'] = 2025
+        future = model.make_future_dataframe(periods=365, freq='D')
 
-    X_2025 = df_2025[['med_salary', 'views', 'listed_time']]
-    df_2025['predicted_postings'] = model.predict(X_2025)
-    df_2025['predicted_postings'] = df_2025['predicted_postings'].round(
-        0).astype(int)
+        forecast = model.predict(future)
 
-    return df_2025
+        total_jobs_2025 = forecast[(forecast['ds'] >= '2025-01-01') & (
+            forecast['ds'] <= '2025-12-31')]['yhat'].sum()
+
+        total_jobs_2025 = round(total_jobs_2025, 0)
+
+        skills_list = ', '.join(df_state['skill_abr'].dropna().unique())
+
+        results.append({
+            'state': state,
+            'predicted_postings': total_jobs_2025,
+            'skill_abr': skills_list
+        })
+
+    for state in all_states:
+        if state not in [result['state'] for result in results]:
+            results.append({
+                'state': state,
+                'predicted_postings': 1,
+                'skill_abr': ''
+            })
+
+    return pd.DataFrame(results)
