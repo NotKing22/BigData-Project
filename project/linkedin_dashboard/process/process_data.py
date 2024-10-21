@@ -333,6 +333,7 @@ def get_salary_means(df: pd.DataFrame) -> pd.DataFrame:
     salary_means_df.columns = ['Tipo', 'Média Salarial']
     salary_means_df['Média Salarial'] = salary_means_df[
         'Média Salarial'].apply(lambda x: int(x) if pd.notna(x) else x)
+    salary_means_df['Média Salarial'] = salary_means_df['Média Salarial'].round(-3)
     return salary_means_df
 
 

@@ -84,15 +84,12 @@ def create_callbacks(app):
             add_global_dataset(DatasetName.PREDICT_JOB_POSTINGS_2025,
                                pd.DataFrame(predict_job_df))
 
-        predict_job_df = filter_predict_jobs_by_skills(predict_job_df, selected_skills)
+        predict_job_df = filter_by_skills(predict_job_df, selected_skills)
         
-        min_val = predict_job_df['predicted_postings'].min()
-        max_val = predict_job_df['predicted_postings'].max()
-
-        if max_val > min_val:
-            predict_job_df['normalized'] = (predict_job_df['predicted_postings'] - min_val) / (max_val - min_val)
+        if (predict_job_df['predicted_postings'] > 0).any():
+            color_scale = 'RdBu'
         else:
-            predict_job_df['normalized'] = 0
+            color_scale = [(0, 'red'), (1, 'white') ]
 
         fig = px.choropleth_mapbox(
             predict_job_df,
@@ -102,10 +99,10 @@ def create_callbacks(app):
             color='predicted_postings', 
             hover_name='state',
             mapbox_style="carto-positron", 
-            zoom=2,  
-            center={"lat": 37.1, "lon": -95.7},  # Centro do mapa
-            opacity=0.2,
-            color_continuous_scale='RdBu',
+            zoom=1.8,  
+            center={"lat": 37.1, "lon": -95.7},
+            opacity=0.5,
+            color_continuous_scale=color_scale,
             labels={'predicted_postings': 'Vagas Previstas'},
             title='Previsão de Vagas em 2025 por Estado nos EUA',
         )
