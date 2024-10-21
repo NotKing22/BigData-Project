@@ -9,8 +9,7 @@ from linkedin_dashboard.settings.settings import get_settings
 from prophet import Prophet
 
 from project.linkedin_dashboard.Enums.dataset_enum import DatasetName
-
-global_datasets = {}
+from project.linkedin_dashboard.constants.const import ALL_STATES, GLOBAL_DATASETS
 
 
 def get_global_dataset(dataset_name: str) -> pd.DataFrame:
@@ -20,8 +19,8 @@ def get_global_dataset(dataset_name: str) -> pd.DataFrame:
     :param dataset_name: Nome do dataset (chave) para atualização.
     :param df: DataFrame processado.
     """
-    global global_datasets
-    return global_datasets.get(dataset_name, None)
+    global GLOBAL_DATASETS
+    return GLOBAL_DATASETS.get(dataset_name, None)
 
 
 def add_global_dataset(dataset_name: str, df: pd.DataFrame) -> None:
@@ -31,8 +30,8 @@ def add_global_dataset(dataset_name: str, df: pd.DataFrame) -> None:
     :param dataset_name: Nome do dataset (chave) para atualização.
     :param df: DataFrame processado.
     """
-    global global_datasets
-    global_datasets[dataset_name] = df
+    global GLOBAL_DATASETS
+    GLOBAL_DATASETS[dataset_name] = df
 
 
 def get_dataset(csv_path: str, nrows: Optional[int] = None) -> pd.DataFrame:
@@ -269,7 +268,7 @@ def process_salary(df: pd.DataFrame) -> pd.DataFrame:
 #     return df
 
 
-def filter_by_skills(df: pd.DataFrame, selected_skills) -> pd.DataFrame:
+def filter_by_skills(df: pd.DataFrame, selected_skills: list[str]) -> pd.DataFrame:
     """
     Filters job postings by selected skills.
 
@@ -283,6 +282,31 @@ def filter_by_skills(df: pd.DataFrame, selected_skills) -> pd.DataFrame:
     else:
         filtered_df = df
     return filtered_df
+
+def filter_predict_jobs_by_skills(df: pd.DataFrame, selected_skills: list[str]) -> pd.DataFrame:
+    """
+    Filters job postings by selected skills.
+
+    :param df: DataFrame containing job postings data.
+    :param selected_skills: List of selected skills to filter by.
+    :return: Filtered DataFrame.
+    """
+    if selected_skills:
+        filtered_df = df[df['skill_abr'].apply(
+            lambda x: any(skill in x for skill in selected_skills))]
+    else:
+        filtered_df = df
+    
+    missing_states = set(ALL_STATES) - set(filtered_df['state'].unique())
+    missing_df = pd.DataFrame({
+        'state': list(missing_states),
+        'predicted_postings': 0,
+        'skill_abr': [''] * len(missing_states)
+    })
+    
+    final_df = pd.concat([filtered_df, missing_df], ignore_index=True)
+    
+    return final_df
 
 
 def get_remote_distribution(df: pd.DataFrame) -> list:
@@ -339,60 +363,6 @@ def merge_geolocation_with_jobs(
 
 
 def predict_job_postings_2025(predict_job_df: pd.DataFrame) -> pd.DataFrame:
-    all_states = [
-        "AL",  # Alabama
-        "AK",  # Alaska
-        "AZ",  # Arizona
-        "AR",  # Arkansas
-        "CA",  # California
-        "CO",  # Colorado
-        "CT",  # Connecticut
-        "DE",  # Delaware
-        "DC",  # District of Columbia
-        "FL",  # Florida
-        "GA",  # Georgia
-        "HI",  # Hawaii
-        "ID",  # Idaho
-        "IL",  # Illinois
-        "IN",  # Indiana
-        "IA",  # Iowa
-        "KS",  # Kansas
-        "KY",  # Kentucky
-        "LA",  # Louisiana
-        "ME",  # Maine
-        "MD",  # Maryland
-        "MA",  # Massachusetts
-        "MI",  # Michigan
-        "MN",  # Minnesota
-        "MS",  # Mississippi
-        "MO",  # Missouri
-        "MT",  # Montana
-        "NE",  # Nebraska
-        "NV",  # Nevada
-        "NH",  # New Hampshire
-        "NJ",  # New Jersey
-        "NM",  # New Mexico
-        "NY",  # New York
-        "NC",  # North Carolina
-        "ND",  # North Dakota
-        "OH",  # Ohio
-        "OK",  # Oklahoma
-        "OR",  # Oregon
-        "PA",  # Pennsylvania
-        "RI",  # Rhode Island
-        "SC",  # South Carolina
-        "SD",  # South Dakota
-        "TN",  # Tennessee
-        "TX",  # Texas
-        "UT",  # Utah
-        "VT",  # Vermont
-        "VA",  # Virginia
-        "WA",  # Washington
-        "WV",  # West Virginia
-        "WI",  # Wisconsin
-        "WY",  # Wyoming
-        "PR"  # Puerto Rico
-    ]
     states = predict_job_df['state'].unique()
     predict_job_df['ds'] = predict_job_df['listed_time_y_m_d']
 
@@ -409,7 +379,7 @@ def predict_job_postings_2025(predict_job_df: pd.DataFrame) -> pd.DataFrame:
             skills_list = ', '.join(df_state['skill_abr'].dropna().unique())
             results.append({
                 'state': state,
-                'predicted_postings': 1,
+                'predicted_postings': 0,
                 'skill_abr': skills_list
             })
             continue
@@ -422,7 +392,7 @@ def predict_job_postings_2025(predict_job_df: pd.DataFrame) -> pd.DataFrame:
         forecast = model.predict(future)
 
         total_jobs_2025 = forecast[(forecast['ds'] >= '2025-01-01') & (
-            forecast['ds'] <= '2025-12-31')]['yhat'].sum()
+            forecast['ds'] <= '2025-12-31')]['yhat_lower'].sum()
 
         total_jobs_2025 = round(total_jobs_2025, 0)
 
@@ -434,11 +404,11 @@ def predict_job_postings_2025(predict_job_df: pd.DataFrame) -> pd.DataFrame:
             'skill_abr': skills_list
         })
 
-    for state in all_states:
+    for state in ALL_STATES:
         if state not in [result['state'] for result in results]:
             results.append({
                 'state': state,
-                'predicted_postings': 1,
+                'predicted_postings': 0,
                 'skill_abr': ''
             })
 

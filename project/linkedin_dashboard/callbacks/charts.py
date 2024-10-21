@@ -3,7 +3,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from dash.dependencies import Input, Output
 from linkedin_dashboard.process.process_data import (
-    add_global_dataset, filter_by_skills, get_global_dataset,
+    add_global_dataset, filter_by_skills, filter_predict_jobs_by_skills, get_global_dataset,
     get_remote_distribution, get_salary_means, load_geolocation_data,
     merge_geolocation_with_jobs, predict_job_postings_2025,
     process_job_postings)
@@ -84,73 +84,35 @@ def create_callbacks(app):
             add_global_dataset(DatasetName.PREDICT_JOB_POSTINGS_2025,
                                pd.DataFrame(predict_job_df))
 
-        predict_job_df = filter_by_skills(predict_job_df, selected_skills)
+        predict_job_df = filter_predict_jobs_by_skills(predict_job_df, selected_skills)
+        
+        min_val = predict_job_df['predicted_postings'].min()
+        max_val = predict_job_df['predicted_postings'].max()
 
-        fig = px.choropleth(
+        if max_val > min_val:
+            predict_job_df['normalized'] = (predict_job_df['predicted_postings'] - min_val) / (max_val - min_val)
+        else:
+            predict_job_df['normalized'] = 0
+
+        fig = px.choropleth_mapbox(
             predict_job_df,
             locations='state',
             geojson=geolocation_gdf,
             featureidkey='properties.name',
-            color='predicted_postings',
+            color='predicted_postings', 
             hover_name='state',
-            color_continuous_scale='PuBu',
+            mapbox_style="carto-positron", 
+            zoom=2,  
+            center={"lat": 37.1, "lon": -95.7},  # Centro do mapa
+            opacity=0.2,
+            color_continuous_scale='RdBu',
             labels={'predicted_postings': 'Vagas Previstas'},
             title='Previsão de Vagas em 2025 por Estado nos EUA',
-            range_color=(min(predict_job_df['predicted_postings'])
-                         or 0, max(predict_job_df['predicted_postings'])))
-
-        fig.update_geos(fitbounds="locations",
-                        visible=False,
-                        center={
-                            "lat": 37.1,
-                            "lon": -95.7
-                        },
-                        projection_type="albers usa",
-                        projection_scale=2)
+        )
 
         fig.update_layout(coloraxis_colorbar=dict(
             titleside='right',
             ticks='outside',
-        ),
-                          template=None)
+        ), template=None)
 
         return fig
-
-    # @app.callback(Output('job-postings-2025-map', 'figure'),
-    #           [Input('interval-component', 'n_intervals')])
-    # def update_map(n_intervals):
-    #     if (df := get_global_dataset(DatasetName.JOB_POSTINGS)) is None:
-    #         df = process_job_postings()
-
-    #     # Adiciona latitude e longitude
-    #     df = add_geolocation_to_jobs(df)
-
-    #     print(df.columns.to_list())
-    #     settings = get_settings()
-    #     model = train_job_posting_model(df)
-    #     df_2025 = predict_job_postings_2025(model, df)
-
-    #     # Adiciona latitude e longitude a df_2025 também
-    #     df_2025 = add_geolocation_to_jobs(df_2025)
-
-    #     # Agora você pode criar um gráfico baseado em df_2025 e as novas colunas latitude/longitude
-    #     fig = px.scatter_mapbox(
-    #         df_2025,
-    #         lat='latitude',
-    #         lon='longitude',
-    #         color='predicted_postings',
-    #         hover_name='location',
-    #         color_continuous_scale=px.colors.sequential.Viridis,
-    #         title='Previsão de Vagas em 2025 por Localização',
-    #         mapbox_style='carto-positron',
-    #         zoom=3,
-    #         center={"lat": 37.1, "lon": -95.7}
-    #     )
-
-    #     fig.update_layout(coloraxis_colorbar=dict(
-    #         titleside='right',
-    #         ticks='outside',
-    #     ),
-    #     template=None)
-
-    #     return fig

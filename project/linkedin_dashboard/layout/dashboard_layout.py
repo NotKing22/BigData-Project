@@ -46,7 +46,7 @@ layout = html.Div([
                           }})
             ],
             style={
-                'width': '55%',
+                'width': '100%',
                 'display': 'inline-block'
             },
         ),
@@ -63,7 +63,7 @@ layout = html.Div([
             dcc.Graph(id='graph')
         ],
                  style={
-                     'width': '45%',
+                     'width': '100%',
                      'display': 'inline-block'
                  }),
     ]),
