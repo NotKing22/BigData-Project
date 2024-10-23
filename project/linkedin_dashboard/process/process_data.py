@@ -65,7 +65,7 @@ def process_job_postings() -> pd.DataFrame:
     settings = get_settings()
 
     job_postings_df = get_dataset(settings.dataset_settings.job_postings_path,
-                                  nrows=110000)
+                                  nrows=8000)
     job_skills_df = get_dataset(settings.dataset_settings.job_skills_path)
     # company_specialities_df = get_dataset(
     #     settings.dataset_settings.company_specialities_path)
@@ -76,7 +76,7 @@ def process_job_postings() -> pd.DataFrame:
 
     job_postings_df = merge_skills_with_jobs(job_postings_df, job_skills_df)
 
-    #job_postings_df = remove_unused_columns(job_postings_df)
+    job_postings_df = remove_unused_columns(job_postings_df)
 
     job_postings_df = process_postings_data(job_postings_df)
 
@@ -138,7 +138,6 @@ def remove_unused_columns(job_postings_df: pd.DataFrame) -> pd.DataFrame:
         'posting_domain',
         'application_type',
         'fips',
-        'title',
         'application_url',
         'compensation_type',
         'formatted_work_type',
@@ -147,8 +146,6 @@ def remove_unused_columns(job_postings_df: pd.DataFrame) -> pd.DataFrame:
         'zip_code',
         'normalized_salary',
         'original_list_time',
-        'company_id',
-        'skills_desc'
     ]
     return job_postings_df.drop(columns=cols_to_remove, errors='ignore')
 
