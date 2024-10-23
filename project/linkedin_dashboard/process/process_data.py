@@ -65,7 +65,7 @@ def process_job_postings() -> pd.DataFrame:
     settings = get_settings()
 
     job_postings_df = get_dataset(settings.dataset_settings.job_postings_path,
-                                  nrows=8000)
+                                  nrows=110000)
     job_skills_df = get_dataset(settings.dataset_settings.job_skills_path)
     # company_specialities_df = get_dataset(
     #     settings.dataset_settings.company_specialities_path)
@@ -130,20 +130,25 @@ def process_postings_data(job_postings_df: pd.DataFrame) -> pd.DataFrame:
 def remove_unused_columns(job_postings_df: pd.DataFrame) -> pd.DataFrame:
     """Removes unused columns from the job postings dataframe."""
     cols_to_remove = [
-        'At scraping time',
-        'job_posting_url',
-        'application_url',
-        'application_type',
-        'expiry',
-        'closed_time',
-        'posting_domain',
         'sponsored',
         'currency',
-        'compensation_type',
-        'zip_code',
+        'work_type',
+        'job_posting_url',
+        'expiry',
+        'posting_domain',
+        'application_type',
         'fips',
-        'views',
+        'title',
+        'application_url',
+        'compensation_type',
+        'formatted_work_type',
         'description',
+        'closed_time',
+        'zip_code',
+        'normalized_salary',
+        'original_list_time',
+        'company_id',
+        'skills_desc'
     ]
     return job_postings_df.drop(columns=cols_to_remove, errors='ignore')
 
@@ -296,16 +301,16 @@ def filter_predict_jobs_by_skills(df: pd.DataFrame, selected_skills: list[str]) 
             lambda x: any(skill in x for skill in selected_skills))]
     else:
         filtered_df = df
-    
+
     missing_states = set(ALL_STATES) - set(filtered_df['state'].unique())
     missing_df = pd.DataFrame({
         'state': list(missing_states),
         'predicted_postings': 0,
         'skill_abr': [''] * len(missing_states)
     })
-    
+
     final_df = pd.concat([filtered_df, missing_df], ignore_index=True)
-    
+
     return final_df
 
 
