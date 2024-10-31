@@ -368,8 +368,6 @@ def merge_geolocation_with_jobs(
 
 
 def predict_job_postings_2025(predict_job_df: pd.DataFrame) -> pd.DataFrame:
-    
-    job_postings_df = process_job_postings()
 
     states = predict_job_df['state'].unique()
     predict_job_df['ds'] = predict_job_df['listed_time_y_m_d']
