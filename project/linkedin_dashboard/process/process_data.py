@@ -379,11 +379,9 @@ def predict_job_postings_2025(predict_job_df: pd.DataFrame) -> pd.DataFrame:
             name='y')
 
         if df_weekly.empty or df_weekly.shape[0] < 2:
-            skills_list = ', '.join(df_state['skill_abr'].dropna().unique())
             results.append({
                 'state': state,
                 'predicted_postings': 0,
-                'skill_abr': skills_list
             })
             continue
 
@@ -399,12 +397,10 @@ def predict_job_postings_2025(predict_job_df: pd.DataFrame) -> pd.DataFrame:
 
         total_jobs_2025 = round(total_jobs_2025, 0)
 
-        skills_list = ', '.join(df_state['skill_abr'].dropna().unique())
 
         results.append({
             'state': state,
             'predicted_postings': total_jobs_2025,
-            'skill_abr': skills_list
         })
 
     for state in ALL_STATES:
@@ -412,7 +408,6 @@ def predict_job_postings_2025(predict_job_df: pd.DataFrame) -> pd.DataFrame:
             results.append({
                 'state': state,
                 'predicted_postings': 0,
-                'skill_abr': ''
             })
 
     return pd.DataFrame(results)

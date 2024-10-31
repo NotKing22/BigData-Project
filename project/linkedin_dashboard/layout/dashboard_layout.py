@@ -3,7 +3,14 @@ from linkedin_dashboard.process.process_data import (get_skill_dict,
                                                      get_skill_names)
 
 skill_dict = get_skill_dict()
-skill_names = get_skill_names()
+# skill_names = get_skill_names()
+skill_names = ['Design', 'Product Manager',"Quality Assurance", "Information Technology"]
+skill_list = {
+    "Design": "DSGN",
+    "Product Manager": "PRDM",
+    "Quality Assurance": "QA",
+    "Information Technology": "IT"
+}
 
 layout = html.Div([
     html.H1("Análise de Vagas no Linkedin por Habilidades",
@@ -28,9 +35,9 @@ layout = html.Div([
             id='skill-dropdown',
             options=[{
                 'label': name,
-                'value': skill_dict[name]
+                'value': skill_list[name]
             } for name in skill_names],
-            multi=True,
+            multi=False,
             placeholder="Selecione uma ou mais habilidades",
             clearable=False,
         ),
@@ -39,11 +46,15 @@ layout = html.Div([
     html.Div([
         html.Div(
             [
-                dcc.Graph(id='job-postings-2025-map',
-                          figure={'layout': {
-                              'width': 1400,
-                              'height': 700,
-                          }})
+                 dcc.Loading(
+            id="loading-1",
+            type="circle",
+            children=dcc.Graph(id='job-postings-2025-map',
+                               figure={'layout': {
+                                   'width': 1400,
+                                   'height': 700,
+                               }})
+                ),
             ],
             style={
                 'width': '100%',
@@ -51,15 +62,7 @@ layout = html.Div([
             },
         ),
         html.Div([
-            html.Div([
-                html.P("Selecione o cargo:"),
-                dcc.Dropdown(
-                    id="dropdown",
-                    options=["Leader", "Assistant", "Producer", "Developer"],
-                    value='Leader',
-                    clearable=False,
-                ),
-            ]),
+
             dcc.Graph(id='graph')
         ],
                  style={

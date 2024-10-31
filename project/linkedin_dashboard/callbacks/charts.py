@@ -45,14 +45,12 @@ def create_callbacks(app):
         return fig
 
     @app.callback(Output("graph", "figure"), [
-        Input("dropdown", "value"),
         Input('skill-dropdown', 'value'),
     ])
-    def display_position(cargo, selected_skills):
+    def display_position(selected_skills):
         if (df := get_global_dataset(DatasetName.JOB_POSTINGS)) is None:
             df = process_job_postings()
         df = filter_by_skills(df, selected_skills)
-        df = df[df["title"].str.contains(cargo, case=False, na=False)]
         median_salaries = df[[
             "formatted_experience_level", "med_salary"
         ]].groupby("formatted_experience_level").median().reset_index()
@@ -70,36 +68,42 @@ def create_callbacks(app):
         geolocation_gdf = load_geolocation_data(
             settings.geo_settings.united_states_geo)
 
-        if (predict_job_df := get_global_dataset(
-                DatasetName.PREDICT_JOB_POSTINGS_2025)) is None:
+        # if (predict_job_df := get_global_dataset(
+        #         DatasetName.PREDICT_JOB_POSTINGS_2025)) is None:
 
-            if (job_postings_df :=
-                    get_global_dataset(DatasetName.JOB_POSTINGS)) is None:
-                job_postings_df = process_job_postings()
+        #     if (job_postings_df :=
+        #             get_global_dataset(DatasetName.JOB_POSTINGS)) is None:
+        #         job_postings_df = process_job_postings()
 
-            df_2025 = predict_job_postings_2025(job_postings_df)
+        #     filtered_job_postings_df = filter_by_skills(job_postings_df, selected_skills)
 
-            predict_job_df = merge_geolocation_with_jobs(
-                df_2025, geolocation_gdf)
-            add_global_dataset(DatasetName.PREDICT_JOB_POSTINGS_2025,
-                               pd.DataFrame(predict_job_df))
+        #     df_2025 = predict_job_postings_2025(filtered_job_postings_df)
+        #         #Salve roney
+        #     predict_job_df = merge_geolocation_with_jobs(
+        #         df_2025, geolocation_gdf)
+        #     add_global_dataset(DatasetName.PREDICT_JOB_POSTINGS_2025,
+        #                        pd.DataFrame(predict_job_df))
 
-        predict_job_df = filter_by_skills(predict_job_df, selected_skills)
-        
-        if (predict_job_df['predicted_postings'] > 0).any():
-            color_scale = 'RdBu'
-        else:
-            color_scale = [(0, 'red'), (1, 'white') ]
+            # Carrega o dataset completo processado anteriormente; se não existir, processa e salva
+        job_postings_df = process_job_postings() if get_global_dataset(DatasetName.JOB_POSTINGS) is None else get_global_dataset(DatasetName.JOB_POSTINGS)
+
+        filtered_job_postings_df = filter_by_skills(job_postings_df, selected_skills)
+        df_2025 = predict_job_postings_2025(filtered_job_postings_df)
+        predict_job_df = merge_geolocation_with_jobs(df_2025, geolocation_gdf)
+
+
+        color_scale = 'RdBu' if (predict_job_df['predicted_postings'] > 0).any() else [(0, 'red'), (1, 'white')]
+
 
         fig = px.choropleth_mapbox(
             predict_job_df,
             locations='state',
             geojson=geolocation_gdf,
             featureidkey='properties.name',
-            color='predicted_postings', 
+            color='predicted_postings',
             hover_name='state',
-            mapbox_style="carto-positron", 
-            zoom=1.8,  
+            mapbox_style="carto-positron",
+            zoom=1.8,
             center={"lat": 37.1, "lon": -95.7},
             opacity=0.5,
             color_continuous_scale=color_scale,
