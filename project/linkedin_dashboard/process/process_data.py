@@ -89,6 +89,9 @@ def process_job_postings() -> pd.DataFrame:
 
     job_postings_df = merge_geolocation_with_jobs(job_postings_df,
                                                   geolocation_df)
+    skill_list = ["DSGN","PRDM","QA","IT"]
+
+    job_postings_df = filter_by_skills(job_postings_df, skill_list)
 
     add_global_dataset(DatasetName.JOB_POSTINGS, job_postings_df)
 
@@ -285,17 +288,19 @@ def filter_by_skills(df: pd.DataFrame, selected_skills: list[str]) -> pd.DataFra
         filtered_df = df
     return filtered_df
 
-def filter_predict_jobs_by_skills(df: pd.DataFrame, selected_skills: list[str]) -> pd.DataFrame:
+def filter_predict_jobs_by_skills(df: pd.DataFrame, selected_skills: str) -> pd.DataFrame:
     """
-    Filters job postings by selected skills.
+    Filters job postings by a selected skill.
 
     :param df: DataFrame containing job postings data.
-    :param selected_skills: List of selected skills to filter by.
+    :param selected_skills: A single selected skill to filter by.
     :return: Filtered DataFrame.
     """
     if selected_skills:
+        print("Selected skill:", selected_skills)  # Debugging output
+        # Assume that each entry in 'skill_abr' is a list of skills
         filtered_df = df[df['skill_abr'].apply(
-            lambda x: any(skill in x for skill in selected_skills))]
+            lambda x: selected_skills in x if isinstance(x, list) else False)]
     else:
         filtered_df = df
 
@@ -309,6 +314,8 @@ def filter_predict_jobs_by_skills(df: pd.DataFrame, selected_skills: list[str]) 
     final_df = pd.concat([filtered_df, missing_df], ignore_index=True)
 
     return final_df
+
+
 
 
 def get_remote_distribution(df: pd.DataFrame) -> list:
@@ -375,6 +382,8 @@ def predict_job_postings_2025(predict_job_df: pd.DataFrame) -> pd.DataFrame:
         df_state: pd.DataFrame = predict_job_df[predict_job_df['state'] ==
                                                 state]
 
+        skills_for_state = df_state['skill_abr'].unique().tolist()
+
         df_weekly = df_state.set_index('ds').resample('D').size().reset_index(
             name='y')
 
@@ -382,6 +391,7 @@ def predict_job_postings_2025(predict_job_df: pd.DataFrame) -> pd.DataFrame:
             results.append({
                 'state': state,
                 'predicted_postings': 0,
+                'skill_abr': skills_for_state
             })
             continue
 
@@ -401,6 +411,8 @@ def predict_job_postings_2025(predict_job_df: pd.DataFrame) -> pd.DataFrame:
         results.append({
             'state': state,
             'predicted_postings': total_jobs_2025,
+            'skill_abr': skills_for_state
+
         })
 
     for state in ALL_STATES:
@@ -408,6 +420,9 @@ def predict_job_postings_2025(predict_job_df: pd.DataFrame) -> pd.DataFrame:
             results.append({
                 'state': state,
                 'predicted_postings': 0,
+                'skill_abr': []
             })
 
     return pd.DataFrame(results)
+
+
