@@ -30,7 +30,7 @@ layout = html.Div([
                 'boxShadow': '2px 2px 10px rgba(0, 0, 0, 0.1)'
             }),
     html.Div([
-        html.Label("Selecione Habilidades:"),
+        html.Label("Selecione a área:"),
         dcc.Dropdown(
             id='skill-dropdown',
             options=[{

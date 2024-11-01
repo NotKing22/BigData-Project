@@ -65,7 +65,7 @@ def process_job_postings() -> pd.DataFrame:
     settings = get_settings()
 
     job_postings_df = get_dataset(settings.dataset_settings.job_postings_path,
-                                  nrows=8000)
+                                  nrows=120000)
     job_skills_df = get_dataset(settings.dataset_settings.job_skills_path)
     # company_specialities_df = get_dataset(
     #     settings.dataset_settings.company_specialities_path)
