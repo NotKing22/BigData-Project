@@ -1,3 +1,6 @@
+from project.linkedin_dashboard.Enums.dataset_enum import DatasetName
+
+
 ALL_STATES = [
         "AL",  # Alabama
         "AK",  # Alaska
@@ -55,3 +58,12 @@ ALL_STATES = [
 
 
 GLOBAL_DATASETS = {}
+
+SKILLS_LIST = ["DSGN", "PRDM", "QA", "IT"]
+SKILLS_WITH_DATASET_MAPPING = {
+        "DSGN": DatasetName.PREDICT_JOB_POSTINGS_DSGN,
+        "PRDM": DatasetName.PREDICT_JOB_POSTINGS_PRDM,
+        "QA": DatasetName.PREDICT_JOB_POSTINGS_QA,
+        "IT": DatasetName.PREDICT_JOB_POSTINGS_IT
+    }
+CACHED_PROCESSED_DF = None

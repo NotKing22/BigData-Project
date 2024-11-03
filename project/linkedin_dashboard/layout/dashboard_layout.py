@@ -3,14 +3,16 @@ from linkedin_dashboard.process.process_data import (get_skill_dict,
                                                      get_skill_names)
 
 skill_dict = get_skill_dict()
-# skill_names = get_skill_names()
+
 skill_names = ['Design', 'Product Manager',"Quality Assurance", "Information Technology"]
+
 skill_list = {
     "Design": "DSGN",
     "Product Manager": "PRDM",
     "Quality Assurance": "QA",
     "Information Technology": "IT"
 }
+
 
 layout = html.Div([
     html.H1("Análise de Vagas no Linkedin por Habilidades",

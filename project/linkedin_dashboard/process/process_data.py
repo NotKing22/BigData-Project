@@ -9,7 +9,7 @@ from linkedin_dashboard.settings.settings import get_settings
 from prophet import Prophet
 
 from project.linkedin_dashboard.Enums.dataset_enum import DatasetName
-from project.linkedin_dashboard.constants.const import ALL_STATES, GLOBAL_DATASETS
+from project.linkedin_dashboard.constants.const import ALL_STATES, GLOBAL_DATASETS, SKILLS_LIST, SKILLS_WITH_DATASET_MAPPING
 
 
 def get_global_dataset(dataset_name: str) -> pd.DataFrame:
@@ -56,6 +56,16 @@ def get_dataset(csv_path: str, nrows: Optional[int] = None) -> pd.DataFrame:
         raise
 
 
+
+def save_predict_job_postings_by_skills(job_posting):
+    new_job_posting = job_posting.copy(deep=True)
+    for skill in SKILLS_LIST: # sua var global
+        df = filter_by_skills(new_job_posting, skill)
+        df = predict_job_postings_2025(df)
+        dataset_name = SKILLS_WITH_DATASET_MAPPING.get(skill)
+        add_global_dataset(dataset_name, df)
+
+
 def process_job_postings() -> pd.DataFrame:
     """
     Loads and processes job postings data, merging it with job skills.
@@ -89,9 +99,6 @@ def process_job_postings() -> pd.DataFrame:
 
     job_postings_df = merge_geolocation_with_jobs(job_postings_df,
                                                   geolocation_df)
-    skill_list = ["DSGN","PRDM","QA","IT"]
-
-    job_postings_df = filter_by_skills(job_postings_df, skill_list)
 
     add_global_dataset(DatasetName.JOB_POSTINGS, job_postings_df)
 

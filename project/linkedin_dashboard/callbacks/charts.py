@@ -6,9 +6,10 @@ from linkedin_dashboard.process.process_data import (
     add_global_dataset, filter_by_skills, filter_predict_jobs_by_skills, get_global_dataset,
     get_remote_distribution, get_salary_means, load_geolocation_data,
     merge_geolocation_with_jobs, predict_job_postings_2025,
-    process_job_postings)
+    process_job_postings, save_predict_job_postings_by_skills)
 
 from project.linkedin_dashboard.Enums.dataset_enum import DatasetName
+from project.linkedin_dashboard.constants.const import SKILLS_LIST
 from project.linkedin_dashboard.settings.settings import get_settings
 cached_processed_df = None
 
@@ -64,38 +65,66 @@ def create_callbacks(app):
     @app.callback(Output('job-postings-2025-map', 'figure'),
                   [Input('skill-dropdown', 'value')])
     def update_map(selected_skills):
-        global cached_processed_df
         settings = get_settings()
         print("Habilidades selecionadas:", selected_skills)
         geolocation_gdf = load_geolocation_data(
             settings.geo_settings.united_states_geo)
 
+        if selected_skills is None or selected_skills == '':
+            print("selecionou")
+            if (cached_processed_df := get_global_dataset(
+                    DatasetName.PREDICT_JOB_POSTINGS_2025)) is None:
+                if (df:=get_global_dataset(DatasetName.JOB_POSTINGS)) is None:
+                    df = process_job_postings()
+                print("caiu")
+                save_predict_job_postings_by_skills(df)
+                filter_predict_job_df = predict_job_postings_2025(df)
+        elif selected_skills == 'DSGN':
+            filter_predict_job_df = get_global_dataset(DatasetName.PREDICT_JOB_POSTINGS_DSGN)
+            print(f'linha 84: {filter_predict_job_df.head()}')
+            if filter_predict_job_df is None:
+                if (df:=get_global_dataset(DatasetName.JOB_POSTINGS)) is None:
+                    df = process_job_postings()
+                print(f'linha 88: {df.head()}')
+                temp_df = filter_by_skills(df, selected_skills)
+                print(f'linha 90: {temp_df.head()}')
+                filter_predict_job_df = predict_job_postings_2025(temp_df)
+                print(f'linha 92: {filter_predict_job_df.head()}')
+        elif selected_skills == 'IT':
+            filter_predict_job_df = get_global_dataset(DatasetName.PREDICT_JOB_POSTINGS_IT)
+            print(f'linha 84: {filter_predict_job_df.head()}')
+            if filter_predict_job_df is None:
+                if (df:=get_global_dataset(DatasetName.JOB_POSTINGS)) is None:
+                    df = process_job_postings()
+                print(f'linha 88: {df.head()}')
+                temp_df = filter_by_skills(df, selected_skills)
+                print(f'linha 90: {temp_df.head()}')
+                filter_predict_job_df = predict_job_postings_2025(temp_df)
+                print(f'linha 92: {filter_predict_job_df.head()}')
+        elif selected_skills == 'PRDM':
+            filter_predict_job_df = get_global_dataset(DatasetName.PREDICT_JOB_POSTINGS_PRDM)
+            print(f'linha 84: {filter_predict_job_df.head()}')
+            if filter_predict_job_df is None:
+                if (df:=get_global_dataset(DatasetName.JOB_POSTINGS)) is None:
+                    df = process_job_postings()
+                print(f'linha 88: {df.head()}')
+                temp_df = filter_by_skills(df, selected_skills)
+                print(f'linha 90: {temp_df.head()}')
+                filter_predict_job_df = predict_job_postings_2025(temp_df)
+                print(f'linha 92: {filter_predict_job_df.head()}')
+        elif selected_skills == 'QA':
+            filter_predict_job_df = get_global_dataset(DatasetName.PREDICT_JOB_POSTINGS_QA)
+            print(f'linha 84: {filter_predict_job_df.head()}')
+            if filter_predict_job_df is None:
+                if (df:=get_global_dataset(DatasetName.JOB_POSTINGS)) is None:
+                    df = process_job_postings()
+                print(f'linha 88: {df.head()}')
+                temp_df = filter_by_skills(df, selected_skills)
+                print(f'linha 90: {temp_df.head()}')
+                filter_predict_job_df = predict_job_postings_2025(temp_df)
+                print(f'linha 92: {filter_predict_job_df.head()}')
 
-        # if (predict_job_df := get_global_dataset(
-        #         DatasetName.PREDICT_JOB_POSTINGS_2025)) is None:
 
-        #     if (job_postings_df :=
-        #             get_global_dataset(DatasetName.JOB_POSTINGS)) is None:
-
-        #             job_postings_df = process_job_postings()
-
-
-        #     df_2025 = predict_job_postings_2025(job_postings_df)
-        #         #Salve roney
-        #     filter_predict_job_df = filter_predict_jobs_by_skills(df_2025, selected_skills)
-        #     print("DataFrame filtrado:\n", filter_predict_job_df.head())
-        #
-
-
-
-        if cached_processed_df is None:
-            df = get_global_dataset(DatasetName.JOB_POSTINGS)
-            if df is None:
-                df = process_job_postings()
-            cached_processed_df = predict_job_postings_2025(df)
-
-        filter_predict_job_df = filter_predict_jobs_by_skills(cached_processed_df, selected_skills)
-        print(filter_predict_job_df.head())
         if filter_predict_job_df.empty:
             print("Nenhum dado disponível para as habilidades selecionadas.")
             # Retorne um gráfico vazio ou um aviso, conforme necessário
@@ -132,12 +161,3 @@ def create_callbacks(app):
         ), template=None)
 
         return fig
-
-def process_and_cache_job_postings():
-    global cached_processed_df
-    # Aqui você processa seu DataFrame original e o armazena em cached_processed_df
-    if (job_postings_df := get_global_dataset(DatasetName.JOB_POSTINGS)) is None:
-        job_postings_df = process_job_postings()
-
-    # Suponha que esta função retorna o DataFrame processado
-    cached_processed_df = predict_job_postings_2025(job_postings_df)
