@@ -9,7 +9,8 @@ from linkedin_dashboard.settings.settings import get_settings
 from prophet import Prophet
 
 from project.linkedin_dashboard.Enums.dataset_enum import DatasetName
-from project.linkedin_dashboard.constants.const import ALL_STATES, GLOBAL_DATASETS, EXTERNAL_DICT
+
+from project.linkedin_dashboard.constants.const import ALL_STATES, GLOBAL_DATASETS, EXTERNAL_DICT, SKILLS_LIST, SKILLS_WITH_DATASET_MAPPING
 
 
 def get_global_dataset(dataset_name: str) -> pd.DataFrame:
@@ -56,6 +57,16 @@ def get_dataset(csv_path: str, nrows: Optional[int] = None) -> pd.DataFrame:
         raise
 
 
+
+def save_predict_job_postings_by_skills(job_posting):
+    new_job_posting = job_posting.copy(deep=True)
+    for skill in SKILLS_LIST: # sua var global
+        df = filter_by_skills(new_job_posting, skill)
+        df = predict_job_postings_2025(df)
+        dataset_name = SKILLS_WITH_DATASET_MAPPING.get(skill)
+        add_global_dataset(dataset_name, df)
+
+
 def process_job_postings() -> pd.DataFrame:
     """
     Loads and processes job postings data, merging it with job skills.
@@ -65,7 +76,7 @@ def process_job_postings() -> pd.DataFrame:
     settings = get_settings()
 
     job_postings_df = get_dataset(settings.dataset_settings.job_postings_path,
-                                  nrows=8000)
+                                  nrows=120000)
     job_skills_df = get_dataset(settings.dataset_settings.job_skills_path)
     # company_specialities_df = get_dataset(
     #     settings.dataset_settings.company_specialities_path)
@@ -287,17 +298,19 @@ def filter_by_skills(df: pd.DataFrame, selected_skills: list[str]) -> pd.DataFra
         filtered_df = df
     return filtered_df
 
-def filter_predict_jobs_by_skills(df: pd.DataFrame, selected_skills: list[str]) -> pd.DataFrame:
+def filter_predict_jobs_by_skills(df: pd.DataFrame, selected_skills: str) -> pd.DataFrame:
     """
-    Filters job postings by selected skills.
+    Filters job postings by a selected skill.
 
     :param df: DataFrame containing job postings data.
-    :param selected_skills: List of selected skills to filter by.
+    :param selected_skills: A single selected skill to filter by.
     :return: Filtered DataFrame.
     """
     if selected_skills:
+        print("Selected skill:", selected_skills)  # Debugging output
+        # Assume that each entry in 'skill_abr' is a list of skills
         filtered_df = df[df['skill_abr'].apply(
-            lambda x: any(skill in x for skill in selected_skills))]
+            lambda x: selected_skills in x if isinstance(x, list) else False)]
     else:
         filtered_df = df
 
@@ -311,6 +324,8 @@ def filter_predict_jobs_by_skills(df: pd.DataFrame, selected_skills: list[str]) 
     final_df = pd.concat([filtered_df, missing_df], ignore_index=True)
 
     return final_df
+
+
 
 
 def get_remote_distribution(df: pd.DataFrame) -> list:
@@ -378,15 +393,16 @@ def predict_job_postings_2025(predict_job_df: pd.DataFrame) -> pd.DataFrame:
         df_state: pd.DataFrame = predict_job_df[predict_job_df['state'] ==
                                                 state]
 
+        skills_for_state = df_state['skill_abr'].unique().tolist()
+
         df_weekly = df_state.set_index('ds').resample('D').size().reset_index(
             name='y')
 
         if df_weekly.empty or df_weekly.shape[0] < 2:
-            skills_list = ', '.join(df_state['skill_abr'].dropna().unique())
             results.append({
                 'state': state,
                 'predicted_postings': 0,
-                'skill_abr': skills_list
+                'skill_abr': skills_for_state
             })
             continue
 
@@ -402,12 +418,12 @@ def predict_job_postings_2025(predict_job_df: pd.DataFrame) -> pd.DataFrame:
 
         total_jobs_2025 = round(total_jobs_2025, 0)
 
-        skills_list = ', '.join(df_state['skill_abr'].dropna().unique())
 
         results.append({
             'state': state,
             'predicted_postings': total_jobs_2025,
-            'skill_abr': skills_list
+            'skill_abr': skills_for_state
+
         })
 
     for state in ALL_STATES:
@@ -415,7 +431,7 @@ def predict_job_postings_2025(predict_job_df: pd.DataFrame) -> pd.DataFrame:
             results.append({
                 'state': state,
                 'predicted_postings': 0,
-                'skill_abr': ''
+                'skill_abr': []
             })
 
     return pd.DataFrame(results)
@@ -430,3 +446,4 @@ def replace_state_to_abbreviation(job_postings_df: pd.DataFrame, external_dict: 
     """
     job_postings_df['state'] = job_postings_df['state'].replace(external_dict)
     return job_postings_df
+

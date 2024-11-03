@@ -6,14 +6,15 @@ from linkedin_dashboard.process.process_data import (
     add_global_dataset, filter_by_skills, filter_predict_jobs_by_skills, get_global_dataset,
     get_remote_distribution, get_salary_means, load_geolocation_data,
     merge_geolocation_with_jobs, predict_job_postings_2025,
-    process_job_postings)
+    process_job_postings, save_predict_job_postings_by_skills)
 
 from project.linkedin_dashboard.Enums.dataset_enum import DatasetName
+from project.linkedin_dashboard.constants.const import SKILLS_LIST
 from project.linkedin_dashboard.settings.settings import get_settings
-
+cached_processed_df = None
 
 def create_callbacks(app):
-
+    global cached_processed_df
     @app.callback(Output('remote-job-pie-chart', 'figure'), [
         Input('skill-dropdown', 'value'),
     ])
@@ -45,14 +46,12 @@ def create_callbacks(app):
         return fig
 
     @app.callback(Output("graph", "figure"), [
-        Input("dropdown", "value"),
         Input('skill-dropdown', 'value'),
     ])
-    def display_position(cargo, selected_skills):
+    def display_position(selected_skills):
         if (df := get_global_dataset(DatasetName.JOB_POSTINGS)) is None:
             df = process_job_postings()
         df = filter_by_skills(df, selected_skills)
-        df = df[df["title"].str.contains(cargo, case=False, na=False)]
         median_salaries = df[[
             "formatted_experience_level", "med_salary"
         ]].groupby("formatted_experience_level").median().reset_index()
@@ -67,39 +66,88 @@ def create_callbacks(app):
                   [Input('skill-dropdown', 'value')])
     def update_map(selected_skills):
         settings = get_settings()
+        print("Habilidades selecionadas:", selected_skills)
         geolocation_gdf = load_geolocation_data(
             settings.geo_settings.united_states_geo)
 
-        if (predict_job_df := get_global_dataset(
-                DatasetName.PREDICT_JOB_POSTINGS_2025)) is None:
+        if selected_skills is None or selected_skills == '':
+            print("selecionou")
+            if (cached_processed_df := get_global_dataset(
+                    DatasetName.PREDICT_JOB_POSTINGS_2025)) is None:
+                if (df:=get_global_dataset(DatasetName.JOB_POSTINGS)) is None:
+                    df = process_job_postings()
+                print("caiu")
+                save_predict_job_postings_by_skills(df)
+                filter_predict_job_df = predict_job_postings_2025(df)
+        elif selected_skills == 'DSGN':
+            filter_predict_job_df = get_global_dataset(DatasetName.PREDICT_JOB_POSTINGS_DSGN)
+            print(f'linha 84: {filter_predict_job_df.head()}')
+            if filter_predict_job_df is None:
+                if (df:=get_global_dataset(DatasetName.JOB_POSTINGS)) is None:
+                    df = process_job_postings()
+                print(f'linha 88: {df.head()}')
+                temp_df = filter_by_skills(df, selected_skills)
+                print(f'linha 90: {temp_df.head()}')
+                filter_predict_job_df = predict_job_postings_2025(temp_df)
+                print(f'linha 92: {filter_predict_job_df.head()}')
+        elif selected_skills == 'IT':
+            filter_predict_job_df = get_global_dataset(DatasetName.PREDICT_JOB_POSTINGS_IT)
+            print(f'linha 84: {filter_predict_job_df.head()}')
+            if filter_predict_job_df is None:
+                if (df:=get_global_dataset(DatasetName.JOB_POSTINGS)) is None:
+                    df = process_job_postings()
+                print(f'linha 88: {df.head()}')
+                temp_df = filter_by_skills(df, selected_skills)
+                print(f'linha 90: {temp_df.head()}')
+                filter_predict_job_df = predict_job_postings_2025(temp_df)
+                print(f'linha 92: {filter_predict_job_df.head()}')
+        elif selected_skills == 'PRDM':
+            filter_predict_job_df = get_global_dataset(DatasetName.PREDICT_JOB_POSTINGS_PRDM)
+            print(f'linha 84: {filter_predict_job_df.head()}')
+            if filter_predict_job_df is None:
+                if (df:=get_global_dataset(DatasetName.JOB_POSTINGS)) is None:
+                    df = process_job_postings()
+                print(f'linha 88: {df.head()}')
+                temp_df = filter_by_skills(df, selected_skills)
+                print(f'linha 90: {temp_df.head()}')
+                filter_predict_job_df = predict_job_postings_2025(temp_df)
+                print(f'linha 92: {filter_predict_job_df.head()}')
+        elif selected_skills == 'QA':
+            filter_predict_job_df = get_global_dataset(DatasetName.PREDICT_JOB_POSTINGS_QA)
+            print(f'linha 84: {filter_predict_job_df.head()}')
+            if filter_predict_job_df is None:
+                if (df:=get_global_dataset(DatasetName.JOB_POSTINGS)) is None:
+                    df = process_job_postings()
+                print(f'linha 88: {df.head()}')
+                temp_df = filter_by_skills(df, selected_skills)
+                print(f'linha 90: {temp_df.head()}')
+                filter_predict_job_df = predict_job_postings_2025(temp_df)
+                print(f'linha 92: {filter_predict_job_df.head()}')
 
-            if (job_postings_df :=
-                    get_global_dataset(DatasetName.JOB_POSTINGS)) is None:
-                job_postings_df = process_job_postings()
 
-            df_2025 = predict_job_postings_2025(job_postings_df)
+        if filter_predict_job_df.empty:
+            print("Nenhum dado disponível para as habilidades selecionadas.")
+            # Retorne um gráfico vazio ou um aviso, conforme necessário
+            return go.Figure()  # Retorna um gráfico vazio se não houver dados
 
-            predict_job_df = merge_geolocation_with_jobs(
-                df_2025, geolocation_gdf)
-            add_global_dataset(DatasetName.PREDICT_JOB_POSTINGS_2025,
-                               pd.DataFrame(predict_job_df))
+        predict_job_df = merge_geolocation_with_jobs(
+                filter_predict_job_df, geolocation_gdf)
 
-        predict_job_df = filter_by_skills(predict_job_df, selected_skills)
-        
-        if (predict_job_df['predicted_postings'] > 0).any():
-            color_scale = 'RdBu'
-        else:
-            color_scale = [(0, 'red'), (1, 'white') ]
+        add_global_dataset(DatasetName.PREDICT_JOB_POSTINGS_2025,
+            pd.DataFrame(predict_job_df))
+
+        color_scale = 'RdBu' if (predict_job_df['predicted_postings'] > 0).any() else [(0, 'red'), (1, 'white')]
+
 
         fig = px.choropleth_mapbox(
             predict_job_df,
             locations='state',
             geojson=geolocation_gdf,
             featureidkey='properties.name',
-            color='predicted_postings', 
+            color='predicted_postings',
             hover_name='state',
-            mapbox_style="carto-positron", 
-            zoom=1.8,  
+            mapbox_style="carto-positron",
+            zoom=1.8,
             center={"lat": 37.1, "lon": -95.7},
             opacity=0.5,
             color_continuous_scale=color_scale,
